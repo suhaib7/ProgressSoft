@@ -17,7 +17,7 @@ namespace Utility
             {
                 var bytes = Encoding.UTF8.GetBytes(password);
                 var hash = sha256.ComputeHash(bytes);
-                return Convert.ToHexString(hash); // .NET 5+ only; use BitConverter.ToString if older
+                return Convert.ToHexString(hash);
             }
         }
 

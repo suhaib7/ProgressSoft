@@ -9,6 +9,7 @@ namespace Models.BusinessCard
 {
     public class BusinessCardModel
     {
+        [Key]
         public int Id { get; set; }
 
         [Required]

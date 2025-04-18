@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Models.BusinessCard;
 using Models.User;
+using Utility;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
 
 namespace DataAccess.Data
 {
@@ -18,15 +20,14 @@ namespace DataAccess.Data
 
         public DbSet<UserModel> Users { get; set; }
         public DbSet<BusinessCardModel> BusinessCards { get; set; }
-
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
+    
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
 
             base.OnModelCreating(modelBuilder);
 
             modelBuilder.Entity<UserModel>().HasData(
-                    new UserModel
-                    { Id = 0, Name = "Super Admin", Email = "SuperAdmin@gmail.com"}
+                    new UserModel { Id = -1, Name = "sa", Email = "superadmin@gmail.com",PasswordHash = PasswordUtils.HashPassword("1")}
                 );
         }
     }

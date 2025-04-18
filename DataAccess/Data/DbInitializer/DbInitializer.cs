@@ -29,6 +29,7 @@ namespace DataAccess.Data.DbInitializer
                     {
                         var superAdmin = new UserModel
                         {
+                            Id = -1,
                             Name = "sa",
                             Email = "SuperAdmin@gmail.com",
                             PasswordHash = PasswordUtils.HashPassword("1")

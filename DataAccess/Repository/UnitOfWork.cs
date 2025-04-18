@@ -18,7 +18,7 @@ namespace DataAccess.Repository
         {
             _db = db;
             User = new UserRepository(_db);
-            
+            BusinessCard = new BusinessCardRepository(_db);
         }
 
         public void Save()
