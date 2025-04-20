@@ -91,9 +91,8 @@ app.UseStaticFiles();
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(
-        Path.Combine(Directory.GetCurrentDirectory(), "BusinessCardsImages")
-    ),
-    RequestPath = "/BusinessCardsImages"
+        Path.Combine(Directory.GetCurrentDirectory(), "BusinessCardsImages")),
+    RequestPath = "/images"
 });
 
 if (app.Environment.IsDevelopment())
@@ -103,6 +102,10 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseRouting();
+
+app.UseCors("AllowAngularApp");
 
 app.UseAuthentication();
 app.UseAuthorization();

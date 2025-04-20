@@ -14,26 +14,43 @@ namespace Service.Service
 {
     public class FileParserService : IFileParserService
     {
-
-        public List<BusinessCardModel> Parse(IFormFile file, IWebHostEnvironment _env)
+        public List<BusinessCardModel> Parse(IFormFile file, bool saveCards = false)
         {
             var extension = Path.GetExtension(file.FileName).ToLower();
             using var stream = new StreamReader(file.OpenReadStream());
 
             return extension switch
             {
-                ".csv" => ParseCsv(stream),
-                ".xml" => ParseXml(file.OpenReadStream()),
+                ".csv" => ParseCsv(stream,saveCards),
+                ".xml" => ParseXml(file.OpenReadStream(),saveCards),
                 _ => throw new NotSupportedException("Unsupported file format")
             };
         }
 
-        private List<BusinessCardModel> ParseCsv(StreamReader reader)
+        private List<BusinessCardModel> ParseXml(Stream stream, bool saveCards)
+        {
+            var serializer = new XmlSerializer(typeof(List<BusinessCardModel>));
+            var cards = (List<BusinessCardModel>)serializer.Deserialize(stream)!;
+
+            if (saveCards)
+            {
+                foreach (var card in cards)
+                {
+                    if (!string.IsNullOrEmpty(card.Photo))
+                    {
+                        card.Photo = SaveImageLocally(card.Photo);
+                    }
+                }
+            }
+
+            return cards;
+        }
+
+        private List<BusinessCardModel> ParseCsv(StreamReader reader, bool saveCards)
         {
             var cards = new List<BusinessCardModel>();
             string? line;
             bool isFirst = true;
-            using var httpClient = new HttpClient();
 
             while ((line = reader.ReadLine()) != null)
             {
@@ -41,7 +58,12 @@ namespace Service.Service
                 var parts = line.Split(';');
 
                 string photoUrl = parts[6];
-                string relativePhotoPath = SaveImageLocally(photoUrl);
+                string photoPath = photoUrl;
+
+                if (saveCards)
+                {
+                    photoPath = SaveImageLocally(photoUrl);
+                }
 
                 cards.Add(new BusinessCardModel
                 {
@@ -51,7 +73,7 @@ namespace Service.Service
                     Email = parts[3],
                     Phone = parts[4],
                     Address = parts[5],
-                    Photo = relativePhotoPath
+                    Photo = photoPath
                 });
             }
             return cards;
@@ -72,12 +94,15 @@ namespace Service.Service
                     Directory.CreateDirectory(imageFolder);
                 }
 
-                // Check if the image URL is valid
-                if (!Uri.TryCreate(imageUrl, UriKind.Absolute, out Uri? uriResult))
+                // Check if the image URL is valid and starts with "http://"
+                if (!Uri.TryCreate(imageUrl, UriKind.Absolute, out Uri? uriResult) ||
+                    !(uriResult.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
+                      uriResult.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)))
                 {
-                    Console.WriteLine($"Invalid image URL: {imageUrl}");
+                    Console.WriteLine($"Invalid or unsupported image URL: {imageUrl}");
                     return string.Empty;
                 }
+
 
                 // Download the image data
                 var imageBytes = new HttpClient().GetByteArrayAsync(uriResult).Result;
@@ -92,8 +117,14 @@ namespace Service.Service
                 // Save the image to the specified folder
                 File.WriteAllBytes(fullPath, imageBytes);
 
-                // Return the relative path (so it's easy to use in the API response or DB)
-                return Base64Utils.Base64Encode(Path.Combine("images", fileName));
+                // Read the saved image as a byte array
+                byte[] fileBytes = File.ReadAllBytes(fullPath);
+
+                // Convert the byte array to a base64 string
+                string base64String = Convert.ToBase64String(fileBytes);
+
+                // Return the base64 encoded string (for storing in DB or API response)
+                return base64String;
             }
             catch (Exception ex)
             {
@@ -101,10 +132,6 @@ namespace Service.Service
                 return string.Empty;
             }
         }
-        private List<BusinessCardModel> ParseXml(Stream stream)
-        {
-            var serializer = new XmlSerializer(typeof(List<BusinessCardModel>));
-            return (List<BusinessCardModel>)serializer.Deserialize(stream)!;
-        }
+
     }
 }

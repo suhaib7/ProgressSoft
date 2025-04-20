@@ -1,16 +1,13 @@
 ﻿using DataAccess.Repository.IRepository;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.SqlServer.Server;
 using Models.BusinessCard;
 using Service.Interface;
-using Service.Service;
 using Utility;
 
 namespace ProgressSoft.Controllers
 {
-    //[Authorize]
+    [Authorize]
     [Route("api/[controller]")]
     [ApiController]
     public class BusinessCardController : ControllerBase
@@ -18,14 +15,12 @@ namespace ProgressSoft.Controllers
         private readonly IUnitOfWork _unitOfWork;
         private readonly IFileParserService _fileParserService;
         private readonly IFileExportService _fileExportService;
-        private readonly IWebHostEnvironment _env;
 
-        public BusinessCardController(IUnitOfWork unitOfWork, IFileParserService fileParserService, IFileExportService fileExportService, IWebHostEnvironment env)
+        public BusinessCardController(IUnitOfWork unitOfWork, IFileParserService fileParserService, IFileExportService fileExportService)
         {
             _unitOfWork = unitOfWork;
             _fileParserService = fileParserService;
             _fileExportService = fileExportService;
-            _env = env;
         }
 
         [HttpGet("GetAll")]
@@ -39,16 +34,17 @@ namespace ProgressSoft.Controllers
                 (string.IsNullOrEmpty(email) || x.Email.Contains(email))
             ).Select(x => new BusinessCardDto
             {
+                Id = x.Id.ToString(),
                 Name = x.Name,
                 Gender = x.Gender,
-                DateOfBirth = x.DateOfBirth,
+                DateOfBirth = x.DateOfBirth.ToString("dd/MM/yyyy"),
                 Email = x.Email,
                 Phone = x.Phone,
                 Address = x.Address,
                 Photo = string.IsNullOrEmpty(x.Photo)
-                    ? null
+                    ? ""
                     : $"https://localhost:7137/{Base64Utils.Base64Decode(x.Photo).Replace("\\", "/")}"
-            });
+            }).ToList();
 
             return Ok(cards);
         }
@@ -69,7 +65,7 @@ namespace ProgressSoft.Controllers
         [HttpPost("import")]
         public IActionResult ImportBusinessCards(IFormFile file)
         {
-            var cards = _fileParserService.Parse(file, _env);
+            var cards = _fileParserService.Parse(file,true);
             foreach (var card in cards)
             {
                 _unitOfWork.BusinessCard.Add(card);
@@ -79,9 +75,21 @@ namespace ProgressSoft.Controllers
         }
 
         [HttpGet("export")]
-        public IActionResult Export(string format = "csv")
+        public IActionResult Export(string format = "csv", string cardIds = null)
         {
-            var cards = _unitOfWork.BusinessCard.GetAll().ToList();
+            IEnumerable<BusinessCardModel> cards;
+
+            // If specific card IDs are provided, filter by those IDs
+            if (!string.IsNullOrEmpty(cardIds))
+            {
+                var ids = cardIds.Split(',').Select(id => int.Parse(id.Trim())).ToList();
+                cards = _unitOfWork.BusinessCard.GetAll().Where(c => ids.Contains(c.Id)).ToList();
+            }
+            else
+            {
+                // Otherwise, get all cards
+                cards = _unitOfWork.BusinessCard.GetAll().ToList();
+            }
 
             byte[] fileBytes;
             string contentType;
@@ -89,25 +97,27 @@ namespace ProgressSoft.Controllers
 
             if (format.ToLower() == "xml")
             {
-                fileBytes = _fileExportService.ToXml(cards); // Convert to XML bytes
+                fileBytes = _fileExportService.ToXml(cards.ToList());
                 contentType = "application/xml";
-                fileName = "BusinessCards.xml";
+                fileName = $"BusinessCards_{DateTime.Now:yyyyMMdd}.xml"; // Changed date format
             }
             else
             {
-                fileBytes = _fileExportService.ToCsv(cards); // Convert to CSV bytes
+                fileBytes = _fileExportService.ToCsv(cards.ToList());
                 contentType = "text/csv";
-                fileName = "BusinessCards.csv";
+                fileName = $"BusinessCards_{DateTime.Now:yyyyMMdd}.csv"; // Changed date format
             }
 
+            // Add Content-Disposition header explicitly
+            Response.Headers.Add("Content-Disposition", $"attachment; filename=\"{fileName}\"");
             return File(fileBytes, contentType, fileName);
         }
-        [AllowAnonymous]
-        [HttpGet("GenerateDummyData")]
-        public async Task<IActionResult> GenerateDummyData()
+
+        [HttpPost("ProcessFile")]
+        public IActionResult ProcessFile(IFormFile file)
         {
-            TestPhotoGenerator.GenerateAndSaveTestPhotos();
-            return Ok();
+            var cards = _fileParserService.Parse(file,false);
+            return Ok(cards);
         }
 
     }

@@ -11,6 +11,6 @@ namespace Service.Interface
 {
     public interface IFileParserService
     {
-        List<BusinessCardModel> Parse(IFormFile file, IWebHostEnvironment _env);
+        List<BusinessCardModel> Parse(IFormFile file, bool saveCards = false);
     }
 }
